@@ -164,4 +164,89 @@ export interface TflArrival {
   destinationName: string;
   expectedArrival: string;
   stationName: string;
+}
+
+// Chat Types
+export interface Chat {
+  _id: string;
+  participants: string[];
+  chatType: 'direct' | 'group';
+  name?: string;
+  description?: string;
+  lastMessage?: Message;
+  unreadCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Message {
+  _id: string;
+  chatId: string;
+  sender: string;
+  content: string;
+  messageType: 'text' | 'image' | 'file' | 'location';
+  readBy: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateChatRequest {
+  participantId: string;
+  chatType: 'direct' | 'group';
+  name?: string;
+}
+
+export interface SendMessageRequest {
+  chatId: string;
+  content: string;
+  messageType: 'text' | 'image' | 'file' | 'location';
+}
+
+export interface UpdateChatRequest {
+  name?: string;
+  description?: string;
+}
+
+export interface MarkAsReadRequest {
+  messageId?: string;
+}
+
+export interface ChatResponse {
+  success: boolean;
+  result: Chat;
+  message: string;
+}
+
+export interface ChatsResponse {
+  success: boolean;
+  result: {
+    chats: Chat[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  };
+  message: string;
+}
+
+export interface MessagesResponse {
+  success: boolean;
+  result: {
+    messages: Message[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  };
+  message: string;
+}
+
+export interface MessageResponse {
+  success: boolean;
+  result: Message;
+  message: string;
 } 

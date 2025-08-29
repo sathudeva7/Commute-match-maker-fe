@@ -1,22 +1,25 @@
 import { authService } from '@/services';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from 'expo-router';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const navigation = useNavigation();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     try {
+      setLoading(true);
       const response = await authService.login({ email, password });
       console.log('Login response:', response);
-      navigation.navigate('profile')
+      router.replace('/profile');
     } catch (error) {
       console.error('Login error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -52,7 +55,7 @@ export default function LoginScreen() {
 
       {/* Log In Button */}
       <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-        <Text style={styles.loginButtonText}>Log In</Text>
+        <Text style={styles.loginButtonText}>{loading ? 'Logging in...' : 'Log In'}</Text>
       </TouchableOpacity>
 
       {/* Forgot Password */}
@@ -86,7 +89,7 @@ export default function LoginScreen() {
       {/* Sign Up */}
       <View style={styles.signupRow}>
         <Text style={{ color: '#222' }}>Don't have an account? </Text>
-        <TouchableOpacity onPress={() => navigation.navigate('register')}>
+        <TouchableOpacity onPress={() => router.push('/(tabs)/register')}>
           <Text style={styles.signupText}>Sign Up</Text>
         </TouchableOpacity>
       </View>

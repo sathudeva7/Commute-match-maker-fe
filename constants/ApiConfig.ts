@@ -50,6 +50,7 @@ export const API_CONFIG = {
       CREATE_MATCH: '/matching/create',
       ACCEPT_MATCH: '/matching/accept',
       REJECT_MATCH: '/matching/reject',
+      SEMANTIC_MATCHES: '/preferences/semantic-matches',
     },
     
     // Journey endpoints
@@ -58,6 +59,18 @@ export const API_CONFIG = {
       MY_JOURNEYS: '/journey/my-journeys',
       UPDATE: '/journey/update',
       DELETE: '/journey/delete',
+    },
+    
+    // Chat endpoints
+    CHAT: {
+      CREATE: '/chat',
+      GET_CHATS: '/chat',
+      GET_CHAT: '/chat/{chatId}',
+      UPDATE_CHAT: '/chat/{chatId}',
+      DELETE_CHAT: '/chat/{chatId}',
+      SEND_MESSAGE: '/chat/messages',
+      GET_MESSAGES: '/chat/{chatId}/messages',
+      MARK_AS_READ: '/chat/{chatId}/read',
     },
     
     // TfL API endpoints (external)

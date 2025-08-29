@@ -3,6 +3,39 @@ import { API_CONFIG } from '../constants/ApiConfig';
 import * as SecureStore from 'expo-secure-store';
 import { ApiResponse } from '../types/api';
 
+// Navigation event system for handling redirects from services
+export type NavigationEvent = 'redirectToLogin' | 'redirectToOnboarding';
+
+class NavigationEventEmitter {
+  private listeners: Map<NavigationEvent, (() => void)[]> = new Map();
+
+  addListener(event: NavigationEvent, callback: () => void) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, []);
+    }
+    this.listeners.get(event)!.push(callback);
+  }
+
+  removeListener(event: NavigationEvent, callback: () => void) {
+    const callbacks = this.listeners.get(event);
+    if (callbacks) {
+      const index = callbacks.indexOf(callback);
+      if (index > -1) {
+        callbacks.splice(index, 1);
+      }
+    }
+  }
+
+  emit(event: NavigationEvent) {
+    const callbacks = this.listeners.get(event);
+    if (callbacks) {
+      callbacks.forEach(callback => callback());
+    }
+  }
+}
+
+export const navigationEventEmitter = new NavigationEventEmitter();
+
 // Define ApiError class here instead of importing
 export class ApiError extends Error {
   status: number;
@@ -52,9 +85,9 @@ class ApiClient {
 	if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       
-      // Handle token expiration
+      // Handle token expiration and unauthorized access
       if (response.status === 401) {
-        await this.handleTokenExpiration();
+        await this.handleUnauthorizedResponse();
       }
       
       throw new ApiError({
@@ -68,31 +101,51 @@ class ApiClient {
     return data;
   }
 
-  // Handle token expiration
-  private async handleTokenExpiration() {
+  // Handle unauthorized responses (401)
+  private async handleUnauthorizedResponse() {
+    console.log('Handling 401 unauthorized response');
+    
     try {
+      // First try to refresh the token
       const refreshToken = await AsyncStorage.getItem('refreshToken');
       if (refreshToken) {
-        const response = await this.post<{ accessToken: string }>(
-          API_CONFIG.ENDPOINTS.AUTH.REFRESH_TOKEN,
-          { refreshToken }
-        );
-        
-        if (response.success) {
-          await SecureStore.setItemAsync('accessToken', response.data.accessToken);
-          return;
+        console.log('Attempting to refresh token...');
+        try {
+          const response = await this.post<{ accessToken: string }>(
+            API_CONFIG.ENDPOINTS.AUTH.REFRESH_TOKEN,
+            { refreshToken }
+          );
+          
+          if (response.success) {
+            console.log('Token refreshed successfully');
+            await SecureStore.setItemAsync('accessToken', response.data.accessToken);
+            return; // Token refreshed successfully, no need to redirect
+          }
+        } catch (refreshError) {
+          console.log('Token refresh failed:', refreshError);
         }
+      } else {
+        console.log('No refresh token available');
       }
     } catch (error) {
-      // Refresh failed, redirect to login
-      await this.clearTokens();
-      // You can add navigation logic here
+      console.log('Error during token refresh:', error);
     }
+    
+    // If we reach here, either no refresh token or refresh failed
+    console.log('Clearing tokens and redirecting to login');
+    await this.clearTokens();
+    navigationEventEmitter.emit('redirectToLogin');
+  }
+
+  // Handle token expiration (legacy method - kept for backward compatibility)
+  private async handleTokenExpiration() {
+    await this.handleUnauthorizedResponse();
   }
 
   // Clear stored tokens
   private async clearTokens() {
     await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
+    await SecureStore.deleteItemAsync('accessToken');
   }
 
   // Core request method
@@ -119,6 +172,7 @@ class ApiClient {
 	
       return await this.handleResponse<T>(response);
     } catch (error) {
+      
       if (error instanceof ApiError) {
         throw error;
       }
@@ -194,4 +248,14 @@ class ApiClient {
 }
 
 // Create singleton instance
-export const apiClient = new ApiClient(); 
+export const apiClient = new ApiClient();
+
+// Utility function to manually redirect to login (can be called from anywhere)
+export const redirectToLogin = () => {
+  navigationEventEmitter.emit('redirectToLogin');
+};
+
+// Utility function to manually redirect to onboarding (can be called from anywhere)
+export const redirectToOnboarding = () => {
+  navigationEventEmitter.emit('redirectToOnboarding');
+}; 

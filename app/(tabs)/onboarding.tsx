@@ -61,6 +61,8 @@ export default function OnboardingScreen() {
   const [currentLanguage, setCurrentLanguage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const navigation = useRouter();
+  const [dobDayMonth, setDobDayMonth] = useState('');
+  const [dobYear, setDobYear] = useState('');
 
   // Fetch existing user profile data
   useEffect(() => {
@@ -84,6 +86,16 @@ export default function OnboardingScreen() {
           preferred_commute_time: userProfile.matching_preferences?.preferred_commute_time || { start: '', end: '' },
           preferred_commute_days: userProfile.matching_preferences?.preferred_commute_days || [],
         });
+        // Pre-fill DOB split fields if available in YYYY-MM-DD
+        const dob = userProfile.date_of_birth || '';
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+          const [y, m, d] = dob.split('-');
+          setDobYear(y);
+          setDobDayMonth(`${d}/${m}`);
+        } else {
+          setDobYear('');
+          setDobDayMonth('');
+        }
       } catch (error) {
         console.log('No existing profile found or error fetching profile:', error);
         // This is expected for new users, so we don't show an error
@@ -235,14 +247,43 @@ export default function OnboardingScreen() {
         keyboardType="phone-pad"
       />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Date of Birth *"
-        value={formData.date_of_birth}
-        onChangeText={(text) => setFormData({...formData, date_of_birth: text})}
-        placeholderTextColor="#999"
-        keyboardType="numeric"
-      />
+      <View style={styles.timeContainer}>
+        <TextInput
+          style={[styles.input, styles.timeInput]}
+          placeholder="DD/MM"
+          value={dobDayMonth}
+          onChangeText={(text) => {
+            const digitsOnly = text.replace(/[^\d]/g, '').slice(0, 4);
+            const formatted = digitsOnly.length > 2 
+              ? `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2)}`
+              : digitsOnly;
+            setDobDayMonth(formatted);
+            const [dd, mm] = formatted.split('/');
+            const composed = dd && mm && dobYear.length === 4 
+              ? `${dobYear}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`
+              : '';
+            setFormData({ ...formData, date_of_birth: composed });
+          }}
+          placeholderTextColor="#999"
+          keyboardType="numeric"
+        />
+        <TextInput
+          style={[styles.input, styles.timeInput]}
+          placeholder="YYYY"
+          value={dobYear}
+          onChangeText={(text) => {
+            const year = text.replace(/[^\d]/g, '').slice(0, 4);
+            setDobYear(year);
+            const [dd, mm] = dobDayMonth.split('/');
+            const composed = dd && mm && year.length === 4 
+              ? `${year}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`
+              : '';
+            setFormData({ ...formData, date_of_birth: composed });
+          }}
+          placeholderTextColor="#999"
+          keyboardType="numeric"
+        />
+      </View>
 
       {/* Gender Selector */}
       <Text style={styles.sectionLabel}>Gender *</Text>
@@ -392,12 +433,12 @@ export default function OnboardingScreen() {
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>Interests & Languages</Text>
       <Text style={styles.stepSubtitle}>
-        {formData.interests.length > 0 ? 'Update your preferences' : 'Help others connect with you'}
+        {formData?.interests.length > 0 ? 'Update your preferences' : 'Help others connect with you'}
       </Text>
 
       {/* Interests Section */}
       <Text style={styles.sectionLabel}>
-        {formData.interests.length > 0 ? 'Your Current Interests' : 'Your Interests'}
+        {formData?.interests.length > 0 ? 'Your Current Interests' : 'Your Interests'}
       </Text>
       
       <View style={styles.inputWithButton}>

@@ -25,7 +25,7 @@ class AuthService {
         // Store tokens
         console.log('response.result.token', response.result.token)
         await this.storeTokens(response.result.token);
-        return response.data;
+        return response.result;
       }
 
       throw new Error(response.error || 'Login failed');

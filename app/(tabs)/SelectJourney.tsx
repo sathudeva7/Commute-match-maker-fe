@@ -1,7 +1,8 @@
-import { useNavigation } from 'expo-router';
+import { useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { Text, Button, TextInput, List, Divider } from 'react-native-paper';
+import { apiClient } from '../../services';
 
 const MODES = [
   { key: 'bus', label: 'Bus', icon: 'bus' },
@@ -23,7 +24,9 @@ export default function SelectJourneyScreen() {
   const [fromStation, setFromStation] = useState('');
   const [toStation, setToStation] = useState('');
   const [stationLoading, setStationLoading] = useState(false);
-  const navigation = useNavigation();
+  const [departureDate, setDepartureDate] = useState(new Date());
+  const [dateStep, setDateStep] = useState(1); // 1: Quick times, 2: Date selection, 3: Time selection
+  const router = useRouter();
 
 
   // Fetch routes from TFL API
@@ -68,7 +71,7 @@ export default function SelectJourneyScreen() {
   // Step 1: Select Mode
   if (step === 1) {
     return (
-      <View style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContainer}>
         <Text style={styles.header}>Select Transport</Text>
         <View style={{ marginVertical: 16 }}>
           {MODES.map(m => (
@@ -92,7 +95,7 @@ export default function SelectJourneyScreen() {
         <Button mode="contained" style={styles.button} disabled>
           Next
         </Button>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -106,15 +109,17 @@ export default function SelectJourneyScreen() {
     );
     return (
       <View style={styles.container}>
-        <Text style={styles.header}>Select Route</Text>
-        <TextInput
-          mode="outlined"
-          placeholder={`Enter ${mode} number or name`}
-          value={routeSearch}
-          onChangeText={setRouteSearch}
-          style={styles.input}
-        />
-        <Text style={styles.subHeader}>Available Routes</Text>
+        <View style={styles.headerContainer}>
+          <Text style={styles.header}>Select Route</Text>
+          <TextInput
+            mode="outlined"
+            placeholder={`Enter ${mode} number or name`}
+            value={routeSearch}
+            onChangeText={setRouteSearch}
+            style={styles.input}
+          />
+          <Text style={styles.subHeader}>Available Routes</Text>
+        </View>
         {loading ? (
           <ActivityIndicator style={{ marginTop: 24 }} />
         ) : (
@@ -136,19 +141,260 @@ export default function SelectJourneyScreen() {
               </TouchableOpacity>
             )}
             ItemSeparatorComponent={() => <Divider />}
+            contentContainerStyle={styles.flatListContent}
+            ListFooterComponent={() => (
+              <Button mode="contained" style={styles.button} disabled>
+                Next
+              </Button>
+            )}
           />
         )}
-        <Button mode="contained" style={styles.button} disabled>
-          Next
-        </Button>
       </View>
     );
   }
 
-  // Step 3: Select From/To
+  // Step 3: Select Date and Time
   if (step === 3) {
+    
+    const quickTimes = [
+      { label: 'in 30 min', minutes: 30 },
+      { label: 'in 60 min', minutes: 60 },
+      { label: 'in 90 min', minutes: 90 },
+      { label: 'Tonight', time: '20:00' }
+    ];
+
+    const getQuickTimeDate = (minutes: number) => {
+      const date = new Date();
+      date.setMinutes(date.getMinutes() + minutes);
+      return date;
+    };
+
+    const getTonightDate = () => {
+      const date = new Date();
+      date.setHours(20, 0, 0, 0);
+      return date;
+    };
+
+    const handleQuickTimeSelect = (quickTime: any) => {
+      if (quickTime.minutes) {
+        setDepartureDate(getQuickTimeDate(quickTime.minutes));
+      } else if (quickTime.time === 'Tonight') {
+        setDepartureDate(getTonightDate());
+      }
+      setDateStep(3); // Go to time selection
+    };
+
+    const formatTime = (date: Date) => {
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    };
+
+    const formatDate = (date: Date) => {
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      if (date.toDateString() === today.toDateString()) {
+        return 'Today';
+      } else if (date.toDateString() === tomorrow.toDateString()) {
+        return 'Tomorrow';
+      } else {
+        return date.toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+    };
+
+    const generateDateOptions = () => {
+      const options = [];
+      const today = new Date();
+      
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + i);
+        options.push(date);
+      }
+      return options;
+    };
+
+    const generateTimeOptions = () => {
+      const options = [];
+      const startHour = 6; // 6 AM
+      const endHour = 23; // 11 PM
+      
+      for (let hour = startHour; hour <= endHour; hour++) {
+        for (let minute = 0; minute < 60; minute += 30) {
+          const time = new Date();
+          time.setHours(hour, minute, 0, 0);
+          options.push(time);
+        }
+      }
+      return options;
+    };
+
+    const dateOptions = generateDateOptions();
+    const timeOptions = generateTimeOptions();
+
+    // Quick Time Selection Step
+    if (dateStep === 1) {
+      return (
+        <ScrollView style={styles.container} contentContainerStyle={styles.scrollContainer}>
+          <Text style={styles.header}>When do you want to leave?</Text>
+          <Text style={styles.subHeader}>Quick options</Text>
+          
+          <View style={styles.optionsContainer}>
+            {quickTimes.map((quickTime, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.optionCard}
+                onPress={() => handleQuickTimeSelect(quickTime)}
+              >
+                <Text style={styles.optionText}>{quickTime.label}</Text>
+                <List.Icon icon="arrow-right" />
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TouchableOpacity
+            style={styles.customButton}
+            onPress={() => setDateStep(2)}
+          >
+            <Text style={styles.customButtonText}>Choose custom time</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      );
+    }
+
+    // Date Selection Step
+    if (dateStep === 2) {
+      return (
+        <ScrollView style={styles.container} contentContainerStyle={styles.scrollContainer}>
+          <Text style={styles.header}>Select Date</Text>
+          
+          <View style={styles.optionsContainer}>
+            {dateOptions.map((date, index) => {
+              const isSelected = date.toDateString() === departureDate.toDateString();
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.optionCard,
+                    isSelected && styles.selectedOptionCard
+                  ]}
+                  onPress={() => {
+                    const newDate = new Date(departureDate);
+                    newDate.setDate(date.getDate());
+                    newDate.setMonth(date.getMonth());
+                    newDate.setFullYear(date.getFullYear());
+                    setDepartureDate(newDate);
+                  }}
+                >
+                  <Text style={[
+                    styles.optionText,
+                    isSelected && styles.selectedOptionText
+                  ]}>
+                    {formatDate(date)}
+                  </Text>
+                  {isSelected && <List.Icon icon="check" color="#fff" />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={styles.navigationButtons}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => setDateStep(1)}
+            >
+              <Text style={styles.backButtonText}>Back</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.nextButton}
+              onPress={() => setDateStep(3)}
+            >
+              <Text style={styles.nextButtonText}>Next</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      );
+    }
+
+    // Time Selection Step
+    if (dateStep === 3) {
+      return (
+        <ScrollView style={styles.container} contentContainerStyle={styles.scrollContainer}>
+          <Text style={styles.header}>Select Time</Text>
+          <Text style={styles.subHeader}>For {formatDate(departureDate)}</Text>
+          
+          <ScrollView style={styles.timeOptionsScrollView} nestedScrollEnabled={true}>
+            <View style={styles.optionsContainer}>
+              {timeOptions.map((time, index) => {
+                const isSelected = 
+                  time.getHours() === departureDate.getHours() &&
+                  time.getMinutes() === departureDate.getMinutes();
+                
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.optionCard,
+                      isSelected && styles.selectedOptionCard
+                    ]}
+                    onPress={() => {
+                      const newDate = new Date(departureDate);
+                      newDate.setHours(time.getHours());
+                      newDate.setMinutes(time.getMinutes());
+                      setDepartureDate(newDate);
+                    }}
+                  >
+                    <Text style={[
+                      styles.optionText,
+                      isSelected && styles.selectedOptionText
+                    ]}>
+                      {formatTime(time)}
+                    </Text>
+                    {isSelected && <List.Icon icon="check" color="#fff" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+
+          <View style={styles.navigationButtons}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => setDateStep(2)}
+            >
+              <Text style={styles.backButtonText}>Back</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={() => setStep(4)}
+            >
+              <Text style={styles.confirmButtonText}>
+                Leave at {formatTime(departureDate)}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      );
+    }
+  }
+
+  // Step 4: Select From/To
+  if (step === 4) {
+    const fromStations = stations.filter(s => s.name.toLowerCase().includes(fromStation.toLowerCase()));
+    const toStations = stations.filter(s => s.name.toLowerCase().includes(toStation.toLowerCase()));
+    
     return (
-      <View style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContainer}>
         <Text style={styles.header}>Select Your Route</Text>
         {stationLoading ? (
           <ActivityIndicator style={{ marginTop: 24 }} />
@@ -170,16 +416,13 @@ export default function SelectJourneyScreen() {
                 />
               }
             />
-            <FlatList
-              data={stations.filter(s => s.name.toLowerCase().includes(fromStation.toLowerCase()))}
-              keyExtractor={item => item.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity onPress={() => setFromStation(item.name)}>
-                  <Text style={{ padding: 8 }}>{item.name}</Text>
+            <ScrollView style={styles.stationScrollView} nestedScrollEnabled={true}>
+              {fromStations.map((item) => (
+                <TouchableOpacity key={item.id} onPress={() => setFromStation(item.name)}>
+                  <Text style={styles.stationItem}>{item.name}</Text>
                 </TouchableOpacity>
-              )}
-              style={{ maxHeight: 120, backgroundColor: '#fff', borderRadius: 8 }}
-            />
+              ))}
+            </ScrollView>
 
             <Text style={styles.label}>To</Text>
             <TextInput
@@ -197,30 +440,45 @@ export default function SelectJourneyScreen() {
                 />
               }
             />
-            <FlatList
-              data={stations.filter(s => s.name.toLowerCase().includes(toStation.toLowerCase()))}
-              keyExtractor={item => item.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity onPress={() => setToStation(item.name)}>
-                  <Text style={{ padding: 8 }}>{item.name}</Text>
+            <ScrollView style={styles.stationScrollView} nestedScrollEnabled={true}>
+              {toStations.map((item) => (
+                <TouchableOpacity key={item.id} onPress={() => setToStation(item.name)}>
+                  <Text style={styles.stationItem}>{item.name}</Text>
                 </TouchableOpacity>
-              )}
-              style={{ maxHeight: 120, backgroundColor: '#fff', borderRadius: 8 }}
-            />
+              ))}
+            </ScrollView>
           </>
         )}
         <Button
           mode="contained"
           style={styles.button}
-          onPress={() => {
-            // Use fromStation and toStation for journey planning
-            navigation.navigate('matching')
+          onPress={async () => {
+            try {
+              const payload = {
+                start_point: fromStation,
+                end_point: toStation,
+                departure_time: departureDate.toISOString(),
+                description: `Journey via ${selectedRoute?.name || mode}`,
+                travel_mode: selectedRoute?.mode || 'bus',
+                route_id: selectedRoute?.id,
+              };
+              console.log(payload,'paluo');
+
+              const res = await apiClient.post<any>('/journey', payload);
+              if (res?.success) {
+                router.push(`/(tabs)/matches?departureTime=${departureDate.toISOString()}`);
+              } else {
+                console.warn('Failed to create journey', res?.error);
+              }
+            } catch (e) {
+              console.warn('Error creating journey', e);
+            }
           }}
           disabled={!fromStation || !toStation}
         >
           Next
         </Button>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -275,8 +533,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F3F4F6',
+  },
+  scrollContainer: {
     padding: 24,
     paddingTop: 48,
+    paddingBottom: 100,
   },
   header: {
     fontSize: 20,
@@ -359,5 +620,115 @@ const styles = StyleSheet.create({
     marginTop: 18,
     marginBottom: 8,
     fontSize: 15,
+  },
+
+  optionsContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    maxHeight: 400, // Limit height to make it scrollable
+  },
+  timeOptionsScrollView: {
+    maxHeight: 300,
+    marginBottom: 20,
+  },
+  headerContainer: {
+    padding: 24,
+    paddingTop: 48,
+  },
+  flatListContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 100,
+  },
+  stationScrollView: {
+    maxHeight: 120,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  stationItem: {
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  optionCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#F9F9F9',
+  },
+  optionText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  selectedOptionCard: {
+    backgroundColor: '#4F8EF7',
+    borderWidth: 1,
+    borderColor: '#4F8EF7',
+  },
+  selectedOptionText: {
+    color: '#fff',
+  },
+  customButton: {
+    backgroundColor: '#E0E0E0',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  customButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  navigationButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  backButton: {
+    backgroundColor: '#E0E0E0',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  nextButton: {
+    backgroundColor: '#4F8EF7',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  nextButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  confirmButton: {
+    backgroundColor: '#4F8EF7',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
   },
 }); 

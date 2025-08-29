@@ -1,6 +1,6 @@
 import { authService } from '@/services';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from 'expo-router';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -9,15 +9,15 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const navigation = useNavigation();
+  const router = useRouter();
 
   const handleRegister = async() => {
     try {
       const response = await authService.register({ full_name, email, password });
-      console.log('Login response:', response);
-      navigation.navigate('onboarding');
+      console.log('Register response:', response);
+      router.replace('/');
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Register error:', error);
     }
   }
   
@@ -99,7 +99,7 @@ export default function Register() {
       {/* Sign Up */}
       <View style={styles.signupRow}>
         <Text style={{ color: '#222' }}>Don't have an account? </Text>
-        <TouchableOpacity onPress={() => navigation.navigate('login')}>
+        <TouchableOpacity onPress={() => router.push('/(tabs)/login')}>
           <Text style={styles.signupText}>Log In</Text>
         </TouchableOpacity>
       </View>
